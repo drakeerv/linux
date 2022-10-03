@@ -13,7 +13,6 @@
 #define GPLL2							4
 #define GPLL2_EARLY						5
 #define PCNOC_BFDCD_CLK_SRC				6
-#define SYSTEM_NOC_BFDCD_CLK_SRC		7
 #define GCC_SMMU_CFG_CLK				8
 #define APSS_AHB_CLK_SRC				9
 #define GCC_QDSS_DAP_CLK				10
@@ -38,7 +37,6 @@
 #define PDM2_CLK_SRC					29
 #define SDCC1_APPS_CLK_SRC				30
 #define SDCC2_APPS_CLK_SRC				31
-#define APSS_TCU_CLK_SRC				32
 #define USB_HS_SYSTEM_CLK_SRC			33
 #define GCC_BLSP1_AHB_CLK				34
 #define GCC_BLSP1_SLEEP_CLK				35
@@ -76,8 +74,8 @@
 #define GCC_USB_HS_SYSTEM_CLK			67
 #define GCC_APSS_TCU_CLK				68
 #define GCC_MSS_Q6_BIMC_AXI_CLK			69
-#define BIMC_PLL						70
-#define BIMC_PLL_VOTE					71
+#define BIMC_PLL_EARLY						70
+#define BIMC_PLL					71
 #define BIMC_DDR_CLK_SRC				72
 #define BLSP1_UART3_APPS_CLK_SRC		73
 #define BLSP1_UART4_APPS_CLK_SRC		74
