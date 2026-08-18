@@ -1,0 +1,426 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// THIS HAS NOT BEEN CLEANED UP AAAAAAHHHHH. WIP.
+/dts-v1/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/clock/qcom,rpmcc.h>
+
+#include "msm8976.dtsi"
+#include "pm8950.dtsi"
+#include "pm8004.dtsi"
+
+/ {
+	model = "Samsung Galaxy Tab S2 8.0 Wi-Fi (2016)";
+	compatible = "samsung,gts28vewifi", "qcom,msm8976";
+	chassis-type = "tablet";
+
+	aliases {
+		mmc0 = &sdhc_1;
+		mmc1 = &sdhc_2;
+		mmc2 = &sdhc_3;
+		serial0 = &blsp1_uart2;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* 24bpp 1536x2048 TrueColor Framebuffer */
+		framebuffer0: framebuffer@a8000000 {
+			compatible = "simple-framebuffer";
+			reg = <0x0 0xa8000000 0x0 (1536 * 2048 * 3)>;
+			width = <1536>;
+			height = <2048>;
+			stride = <4608>;
+			format = "r8g8b8";
+
+			power-domains = <&gcc MDSS_GDSC>;
+
+			clocks = <&gcc GCC_MDSS_AHB_CLK>,
+			<&gcc GCC_MDSS_AXI_CLK>,
+			<&gcc GCC_MDSS_VSYNC_CLK>,
+			<&gcc GCC_MDSS_MDP_CLK>,
+			<&gcc GCC_MDSS_BYTE0_CLK>,
+			<&gcc GCC_MDSS_PCLK0_CLK>,
+			<&gcc GCC_MDSS_ESC0_CLK>;
+		};
+	};
+
+	/* 3 GB Physical RAM */
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0xc0000000>;
+	};
+
+	/* Hardware Buttons */
+	gpio-keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_keys_default>;
+
+		key-volume-up {
+			label = "Volume Up";
+			gpios = <&tlmm 113 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_VOLUMEUP>;
+			debounce-interval = <15>;
+		};
+
+		key-home {
+			label = "Home";
+			gpios = <&tlmm 114 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_HOMEPAGE>;
+			wakeup-source;
+			debounce-interval = <15>;
+		};
+	};
+
+	/* Touchscreen Regulators */
+	reg_tsp_vdd: regulator-tsp-vdd {
+		compatible = "regulator-fixed";
+		regulator-name = "tsp_vdd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&tlmm 69 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	reg_tsp_io: regulator-tsp-io {
+		compatible = "regulator-fixed";
+		regulator-name = "tsp_io";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		gpio = <&tlmm 21 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	/* Synaptics Touchscreen */
+	i2c_tsp: i2c-tsp {
+		compatible = "i2c-gpio";
+		sda-gpios = <&tlmm 110 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		scl-gpios = <&tlmm 111 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		touchscreen@20 {
+			compatible = "syna,rmi4-i2c";
+			reg = <0x20>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <65 IRQ_TYPE_EDGE_FALLING>;
+
+			vdd-supply = <&reg_tsp_vdd>;
+			vio-supply = <&reg_tsp_io>;
+
+			syna,reset-delay-ms = <200>;
+			syna,startup-delay-ms = <200>;
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rmi4-f01@1 {
+				reg = <0x1>;
+				syna,nosleep-mode = <1>;
+			};
+
+			rmi4-f12@12 {
+				reg = <0x12>;
+				syna,sensor-type = <1>;
+			};
+		};
+	};
+
+	/* Wi-Fi Regulators */
+	rome_vreg1p1: regulator-rome1p1 {
+		compatible = "regulator-fixed";
+		regulator-name = "rome_vreg1p1";
+		regulator-min-microvolt = <1100000>;
+		regulator-max-microvolt = <1100000>;
+		gpio = <&tlmm 8 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
+		pinctrl-names = "default";
+		pinctrl-0 = <&rome_vreg1p1_pins>;
+	};
+
+	rome_vreg: regulator-rome {
+		compatible = "regulator-fixed";
+		regulator-name = "rome_vreg";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&tlmm 66 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
+		pinctrl-names = "default";
+		pinctrl-0 = <&rome_vreg_pins>;
+		vin-supply = <&rome_vreg1p1>;
+	};
+
+	/* Wi-Fi Power Sequencer */
+	wlan_pwrseq: wlan-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wlan_en_default>;
+		reset-gpios = <&tlmm 34 GPIO_ACTIVE_LOW>;
+		post-power-on-delay-ms = <500>;
+	};
+
+	/* SM5703 MUIC */
+	i2c_muic: i2c-muic {
+		compatible = "i2c-gpio";
+		sda-gpios = <&tlmm 18 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		scl-gpios = <&tlmm 19 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		muic: extcon@25 {
+			compatible = "siliconmitus,sm5502-muic";
+			reg = <0x25>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <140 IRQ_TYPE_EDGE_FALLING>;
+		};
+	};
+
+	/* SM5703 Fuel Gauge */
+	i2c_fg: i2c-fg {
+		compatible = "i2c-gpio";
+		sda-gpios = <&tlmm 118 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		scl-gpios = <&tlmm 117 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		fuelgauge@71 {
+			compatible = "maxim,max17042";
+			reg = <0x71>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <109 IRQ_TYPE_EDGE_FALLING>;
+			maxim,rsns-microohm = <10000>;
+		};
+	};
+
+	vph_pwr: regulator-vph-pwr {
+		compatible = "regulator-fixed";
+		regulator-name = "vph-pwr";
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	/* TrustZone & Framebuffer Memory Carveouts */
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		framebuffer_region: framebuffer@a8000000 {
+			reg = <0x0 0xa8000000 0x0 0x2000000>;
+			no-map;
+		};
+
+		sec_apps_region: sec_apps@85000000 {
+			reg = <0x0 0x85000000 0x0 0x1000000>;
+			no-map;
+		};
+
+		modem_region: modem@86c00000 {
+			reg = <0x0 0x86c00000 0x0 0x5600000>;
+			no-map;
+		};
+
+		reloc_region: reloc@8c200000 {
+			reg = <0x0 0x8c200000 0x0 0x1f00000>;
+			no-map;
+		};
+
+		venus_region: venus@8e100000 {
+			reg = <0x0 0x8e100000 0x0 0x500000>;
+			no-map;
+		};
+
+		lk_region: lk_region@8f600000 {
+			reg = <0x0 0x8f600000 0x0 0x300000>;
+			no-map;
+		};
+
+		secdbg_region: secdbg_region@a0000000 {
+			reg = <0x0 0xa0000000 0x0 0x800000>;
+			no-map;
+		};
+	};
+};
+
+&blsp1_uart2 {
+	status = "okay";
+};
+
+/* RPM Regulators */
+&rpm_requests {
+	pm8950_regulators: regulators {
+		compatible = "qcom,rpm-pm8950-regulators";
+
+		vdd_s1-supply = <&vph_pwr>;
+		vdd_s2-supply = <&vph_pwr>;
+		vdd_s3-supply = <&vph_pwr>;
+		vdd_s4-supply = <&vph_pwr>;
+		vdd_s6-supply = <&vph_pwr>;
+		vdd_l1_l19-supply = <&pm8950_s3>;
+		vdd_l2_l23-supply = <&pm8950_s3>;
+		vdd_l3-supply = <&pm8950_s3>;
+		vdd_l5_l6_l7_l16-supply = <&pm8950_s4>;
+		vdd_l8_l11_l12_l17_l22-supply = <&vph_pwr>;
+
+		pm8950_s1: s1 { regulator-min-microvolt = <1000000>; regulator-max-microvolt = <1162500>; };
+		pm8950_s3: s3 { regulator-min-microvolt = <1325000>; regulator-max-microvolt = <1325000>; };
+		pm8950_s4: s4 { regulator-min-microvolt = <2050000>; regulator-max-microvolt = <2050000>; };
+
+		/* Display Power Rails pinned ON for devmem refresh */
+		pm8950_l2: l2 { regulator-min-microvolt = <1200000>; regulator-max-microvolt = <1200000>; regulator-always-on; };
+		pm8950_l5: l5 { regulator-min-microvolt = <1800000>; regulator-max-microvolt = <1800000>; };
+		pm8950_l6: l6 { regulator-min-microvolt = <1800000>; regulator-max-microvolt = <1800000>; regulator-always-on; };
+		pm8950_l7: l7 { regulator-min-microvolt = <1800000>; regulator-max-microvolt = <1800000>; regulator-always-on; };
+		pm8950_l8: l8 { regulator-min-microvolt = <2900000>; regulator-max-microvolt = <2900000>; };
+		pm8950_l10: l10 { regulator-min-microvolt = <2800000>; regulator-max-microvolt = <2800000>; };
+		pm8950_l11: l11 { regulator-min-microvolt = <2950000>; regulator-max-microvolt = <2950000>; };
+		pm8950_l12: l12 { regulator-min-microvolt = <1800000>; regulator-max-microvolt = <2950000>; };
+		pm8950_l13: l13 { regulator-min-microvolt = <3075000>; regulator-max-microvolt = <3075000>; };
+		pm8950_l16: l16 { regulator-min-microvolt = <1800000>; regulator-max-microvolt = <1800000>; };
+		pm8950_l17: l17 { regulator-min-microvolt = <2850000>; regulator-max-microvolt = <2850000>; regulator-always-on; };
+		pm8950_l22: l22 { regulator-min-microvolt = <1800000>; regulator-max-microvolt = <2800000>; };
+	};
+};
+
+&pm8950_resin {
+	linux,code = <KEY_VOLUMEDOWN>;
+	status = "okay";
+};
+
+&usb_hs_phy {
+	vdd-supply = <&pm8950_s1>;
+	vdda1p8-supply = <&pm8950_l7>;
+	vdda3p3-supply = <&pm8950_l13>;
+	extcon = <&muic>;
+	status = "okay";
+};
+
+&otg {
+	phys = <&usb_hs_phy>;
+	phy-names = "usb-phy";
+	extcon = <&muic>, <&muic>;
+	status = "okay";
+	/delete-node/ ulpi;
+};
+
+/* Internal eMMC Storage */
+&sdhc_1 {
+	bus-width = <8>;
+	non-removable;
+	vmmc-supply = <&pm8950_l8>;
+	vqmmc-supply = <&pm8950_l5>;
+	status = "okay";
+};
+
+/* MicroSD Card Slot */
+&sdhc_2 {
+	bus-width = <4>;
+	cd-gpios = <&tlmm 100 GPIO_ACTIVE_LOW>;
+	vmmc-supply = <&pm8950_l11>;
+	vqmmc-supply = <&pm8950_l12>;
+	status = "okay";
+};
+
+/* QCA6174 Wi-Fi SDIO Controller*/
+&sdhc_3 {
+	bus-width = <4>;
+	non-removable;
+	no-1-8-v;
+	max-frequency = <50000000>;
+	mmc-pwrseq = <&wlan_pwrseq>;
+	vmmc-supply = <&rome_vreg>;
+	vqmmc-supply = <&pm8950_l5>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&sdc3_default>;
+	pinctrl-1 = <&sdc3_sleep>;
+	status = "okay";
+};
+
+/* Disable native MDSS so simpledrm has ownership of 0xa8000000 */
+&mdss {
+	status = "disabled";
+};
+
+/* TLMM Pin Controller */
+&tlmm {
+	gpio-reserved-ranges = <0 4>, <12 4>;
+
+	gpio_keys_default: gpio-keys-default-state {
+		pins = "gpio113", "gpio114";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-up;
+	};
+
+	sdc3_default: sdc3-default-state {
+		clk {
+			pins = "gpio44";
+			function = "sdc3";
+			drive-strength = <16>;
+			bias-disable;
+		};
+		cmd_data {
+			pins = "gpio39", "gpio40", "gpio41", "gpio42", "gpio43";
+			function = "sdc3";
+			drive-strength = <10>;
+			bias-pull-up;
+		};
+	};
+
+	sdc3_sleep: sdc3-sleep-state {
+		clk {
+			pins = "gpio44";
+			function = "sdc3";
+			drive-strength = <2>;
+			bias-disable;
+		};
+		cmd_data {
+			pins = "gpio39", "gpio40", "gpio41", "gpio42", "gpio43";
+			function = "sdc3";
+			drive-strength = <2>;
+			bias-pull-up;
+		};
+	};
+
+	rome_vreg_pins: rome-vreg-state {
+		pins = "gpio66";
+		function = "gpio";
+		drive-strength = <16>;
+		bias-disable;
+	};
+
+	rome_vreg1p1_pins: rome-vreg1p1-state {
+		pins = "gpio8";
+		function = "gpio";
+		drive-strength = <16>;
+		bias-disable;
+	};
+
+	wlan_en_default: wlan-en-default-state {
+		pins = "gpio34";
+		function = "gpio";
+		drive-strength = <16>;
+		bias-disable;
+	};
+};
+
+&xo_board {
+	clock-frequency = <19200000>;
+};
